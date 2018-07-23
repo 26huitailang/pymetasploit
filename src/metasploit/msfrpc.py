@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from httplib import HTTPConnection, HTTPSConnection
+from http.client import HTTPConnection, HTTPSConnection
 import ssl
 from numbers import Number
 
@@ -53,8 +53,8 @@ __all__ = [
     'SessionManager',
     'MsfConsole',
     'ConsoleManager',
-    'ReportFilter',
-    'ReportFilterQuery'
+    # 'ReportFilter',
+    # 'ReportFilterQuery'
 ]
 
 
@@ -230,14 +230,14 @@ class MsfRpcClient(object):
             self.client.request('POST', self.uri, packb(l), self._headers)
             r = self.client.getresponse()
             if r.status == 200:
-                return unpackb(r.read())
+                return self.decode(r.read())
             raise MsfRpcError('An unknown error has occurred while logging in.')
         elif self.authenticated:
             l.insert(1, self.sessionid)
             self.client.request('POST', self.uri, packb(l), self._headers)
             r = self.client.getresponse()
             if r.status == 200:
-                result = unpackb(r.read())
+                result = self.decode(r.read())
                 if 'error' in result:
                     raise MsfRpcError(result['error_message'])
                 return result
@@ -313,6 +313,7 @@ class MsfRpcClient(object):
         """
         if self.sessionid is None:
             r = self.call(MsfRpcMethod.AuthLogin, username, password)
+            print(r)
             try:
                 if r['result'] == 'success':
                     self.sessionid = r['token']
@@ -329,6 +330,23 @@ class MsfRpcClient(object):
         Logs the current user out. Note: do not call directly.
         """
         self.call(MsfRpcMethod.AuthLogout, self.sessionid)
+
+    def convert(self, data):
+        """convert dict from bytes to str"""
+        if isinstance(data, bytes):
+            return data.decode('utf-8')
+        if isinstance(data, dict):
+            return dict(map(self.convert, data.items()))
+        if isinstance(data, tuple):
+            return map(self.convert, data)
+        if isinstance(data, list):
+            return map(self.convert, data)
+        return data
+
+    def decode(self, data):
+        result = unpackb(data, raw=False)
+        result = self.convert(result)
+        return result
 
 
 class MsfTable(object):
@@ -968,14 +986,14 @@ class Workspace(object):
         """
         Delete the current workspace.
         """
-        self.rpc.call(MsfRpcMethod.DbDelWorkspace, {'workspace' : self.name})
+        self.rpc.call(MsfRpcMethod.DbDelWorkspace, {'workspace': self.name})
 
     def importdata(self, data):
-        self.rpc.call(MsfRpcMethod.DbImportData, {'workspace' : self.name, 'data' : data})
+        self.rpc.call(MsfRpcMethod.DbImportData, {'workspace': self.name, 'data': data})
 
     def importfile(self, fname):
-        r = file(fname, mode='rb')
-        self.rpc.call(MsfRpcMethod.DbImportData, {'workspace' : self.name, 'data' : r.read()})
+        r = open(fname, mode='rb')
+        self.rpc.call(MsfRpcMethod.DbImportData, {'workspace': self.name, 'data': r.read()})
         r.close()
 
 
@@ -1329,7 +1347,8 @@ class MsfModule(object):
         self.rpc = rpc
         self._info = rpc.call(MsfRpcMethod.ModuleInfo, mtype, mname)
         for k in self._info:
-            setattr(self, k, self._info.get(k))
+            if k not in ['options']:  # todo: This options key-val can't setattr
+                setattr(self, k, self._info.get(k))
         self._moptions = rpc.call(MsfRpcMethod.ModuleOptions, mtype, mname)
         self._roptions = []
         self._aoptions = []
@@ -1462,13 +1481,13 @@ class MsfModule(object):
                         )
                     runopts['PAYLOAD'] = payload.modulename
                     for k, v in payload.runoptions.iteritems():
-                        if v is None or (isinstance(v, basestring) and not v):
+                        if v is None or (isinstance(v, str) and not v):
                             continue
                         if k not in runopts or runopts[k] is None or \
-                           (isinstance(runopts[k], basestring) and not runopts[k]):
+                           (isinstance(runopts[k], str) and not runopts[k]):
                             runopts[k] = v
 #                    runopts.update(payload.runoptions)
-                elif isinstance(payload, basestring):
+                elif isinstance(payload, str):
                     if payload not in self.payloads:
                         raise ValueError('Invalid payload (%s) for given target (%d).' % (payload, self.target))
                     runopts['PAYLOAD'] = payload
