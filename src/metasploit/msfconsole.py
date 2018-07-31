@@ -1,7 +1,8 @@
 #!/usr/bin/env python
+# coding=utf-8
 
 from threading import Timer, Lock
-from msfrpc import ShellSession
+from .msfrpc import ShellSession
 
 __author__ = 'Nadeem Douba'
 __copyright__ = 'Copyright 2012, PyMetasploit Project'

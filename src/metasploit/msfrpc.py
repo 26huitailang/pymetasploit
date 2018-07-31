@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding=utf-8
 
 from http.client import HTTPConnection, HTTPSConnection
 import ssl
@@ -179,7 +180,7 @@ class MsfPlugins(object):
 class MsfRpcClient(object):
 
     _headers = {
-        'Content-Type' : 'binary/message-pack'
+        'Content-Type': 'binary/message-pack'
     }
 
     def __init__(self, password, **kwargs):
@@ -203,13 +204,14 @@ class MsfRpcClient(object):
         self.ssl = kwargs.get('ssl', True)
         self.verify_ssl = kwargs.get('verify', False)
         self.sessionid = kwargs.get('token')
+        self.timeout = kwargs.get('timeout', 5)
         if self.ssl:
             if self.verify_ssl:
                 self.client = HTTPSConnection(self.server, self.port)
             else:
                 self.client = HTTPSConnection(self.server, self.port, context=ssl._create_unverified_context())
         else:
-            self.client = HTTPConnection(self.server, self.port)
+            self.client = HTTPConnection(self.server, self.port, self.timeout)
         self.login(kwargs.get('username', 'msf'), password)
 
     def call(self, method, *args):
@@ -224,17 +226,17 @@ class MsfRpcClient(object):
 
         Returns : RPC call result
         """
-        l = [ method ]
-        l.extend(args)
+        methods = [method]
+        methods.extend(args)
         if method == MsfRpcMethod.AuthLogin:
-            self.client.request('POST', self.uri, packb(l), self._headers)
+            self.client.request('POST', self.uri, packb(methods), self._headers)
             r = self.client.getresponse()
             if r.status == 200:
                 return self.decode(r.read())
             raise MsfRpcError('An unknown error has occurred while logging in.')
         elif self.authenticated:
-            l.insert(1, self.sessionid)
-            self.client.request('POST', self.uri, packb(l), self._headers)
+            methods.insert(1, self.sessionid)
+            self.client.request('POST', self.uri, packb(methods), self._headers)
             r = self.client.getresponse()
             if r.status == 200:
                 result = self.decode(r.read())
@@ -313,7 +315,6 @@ class MsfRpcClient(object):
         """
         if self.sessionid is None:
             r = self.call(MsfRpcMethod.AuthLogin, username, password)
-            print(r)
             try:
                 if r['result'] == 'success':
                     self.sessionid = r['token']
@@ -356,19 +357,19 @@ class MsfTable(object):
         self.name = wname
 
     def dbreport(self, atype, attrs):
-        attrs.update({ 'workspace' : self.name })
+        attrs.update({'workspace': self.name})
         return self.rpc.call('db.report_%s' % atype, attrs)
 
     def dbdel(self, atype, attrs):
-        attrs.update({ 'workspace' : self.name })
+        attrs.update({'workspace': self.name})
         return self.rpc.call('db.del_%s' % atype, attrs)
 
     def dbget(self, atype, attrs):
-        attrs.update({ 'workspace' : self.name })
+        attrs.update({'workspace': self.name})
         return self.rpc.call('db.get_%s' % atype, attrs)[atype]
 
     def records(self, atypes, **kwargs):
-        kwargs.update({'workspace' : self.name})
+        kwargs.update({'workspace': self.name})
         return self.rpc.call('db.%s' % atypes, kwargs)[atypes]
 
     @property
@@ -434,7 +435,7 @@ class NotesTable(MsfTable):
         it will be created. If 'host' and 'service' are all omitted, the new Note
         will be associated with the current 'workspace'.
         """
-        kwargs.update({ 'data' : data, 'type' : type })
+        kwargs.update({'data': data, 'type': type})
         kwargs.update(kwargs.pop('service', {}))
         self.dbreport('note', kwargs)
 
@@ -507,7 +508,7 @@ class LootsTable(MsfTable):
         - info : additional information about this Loot.
         - data : the data within the Loot.
         """
-        kwargs.update({ 'path' : path, 'type' : type })
+        kwargs.update({'path': path, 'type': type})
         self.dbreport('loot', kwargs)
 
     update = report
@@ -554,7 +555,7 @@ class CredsTable(MsfTable):
         - source_id : The Vuln or Cred id of the source of this cred.
         - source_type : Either Vuln or Cred.
         """
-        kwargs.update({'host' : host, 'port' : port})
+        kwargs.update({'host': host, 'port': port})
         kwargs['pass'] = kwargs.get('password')
         self.dbreport('cred', kwargs)
 
@@ -588,7 +589,7 @@ class AuthInfoTable(MsfTable):
         - source_id : The Vuln or Cred id of the source of this cred.
         - source_type : Either Vuln or Cred.
         """
-        kwargs.update({'host' : host, 'port' : port})
+        kwargs.update({'host': host, 'port': port})
         self.dbreport('auth_info', kwargs)
 
     update = report
@@ -630,7 +631,7 @@ class HostsTable(MsfTable):
         - scope : interface identifier for link-local IPv6.
         - virtual_host : the name of the VM host software, e.g. 'VMWare', 'QEMU', 'Xen', etc.
         """
-        kwargs.update({'host' : host})
+        kwargs.update({'host': host})
         self.dbreport('host', kwargs)
 
     def delete(self, **kwargs):
@@ -642,7 +643,7 @@ class HostsTable(MsfTable):
         - address : the address associated with a Note, not required if 'host' or 'addresses' is specified.
         - addresses : a list of addresses associated with Notes, not required if 'host' or 'address' is specified.
         """
-        if not any([ i in kwargs for i in ('host', 'address', 'addresses')]):
+        if not any([i in kwargs for i in ('host', 'address', 'addresses')]):
             raise TypeError('Expected host, address, or addresses.')
         self.dbdel('host', kwargs)
 
@@ -655,7 +656,7 @@ class HostsTable(MsfTable):
         - address : the address associated with a Note, not required if 'host' or 'addr' is specified.
         - addr : same as 'address', not required if 'host' or 'address' is specified.
         """
-        if not any([ i in kwargs for i in ('addr', 'address', 'host')]):
+        if not any([i in kwargs for i in ('addr', 'address', 'host')]):
             raise TypeError('Expected addr, address, or host.')
         return self.dbget('host', kwargs)
 
@@ -696,7 +697,7 @@ class ServicesTable(MsfTable):
         - name : the application layer protocol (e.g. ssh, mssql, smb)
         - sname : an alias for the above
         """
-        kwargs.update({'host' : host, 'port' : port, 'proto' : proto})
+        kwargs.update({'host': host, 'port': port, 'proto': proto})
         self.dbreport('service', kwargs)
 
     def delete(self, **kwargs):
@@ -776,7 +777,7 @@ class VulnsTable(MsfTable):
         - info : a human readable description of the vuln, free-form text.
         - refs : an array of Ref objects or string names of references.
         """
-        kwargs.update({'host' : host, 'name' : name})
+        kwargs.update({'host': host, 'name': name})
         self.dbreport('vuln', kwargs)
 
     def delete(self, **kwargs):
@@ -788,7 +789,7 @@ class VulnsTable(MsfTable):
         - address : the address associated with a Note, not required if 'host' or 'addresses' is specified.
         - addresses : a list of addresses associated with Notes, not required if 'host' or 'address' is specified.
         """
-        if not any([ i in kwargs for i in ('host', 'address', 'addresses')]):
+        if not any([i in kwargs for i in ('host', 'address', 'addresses')]):
             raise TypeError('Expected host, address, or addresses.')
         self.dbdel('vuln', kwargs)
 
@@ -801,7 +802,7 @@ class VulnsTable(MsfTable):
         - address : the address associated with a Note, not required if 'host' or 'addr' is specified.
         - addr : same as 'address', not required if 'host' or 'address' is specified.
         """
-        if not any([ i in kwargs for i in ('addr', 'address', 'host')]):
+        if not any([i in kwargs for i in ('addr', 'address', 'host')]):
             raise TypeError('Expected addr, address, or host.')
         return self.dbreport('vuln', kwargs)
 
@@ -873,7 +874,7 @@ class ClientsTable(MsfTable):
 
         Returns a Client.
         """
-        kwargs.update({'host' : host, 'ua_string' : ua_string})
+        kwargs.update({'host': host, 'ua_string': ua_string})
         self.dbreport('client', kwargs)
 
     def delete(self, **kwargs):
@@ -895,7 +896,7 @@ class ClientsTable(MsfTable):
         - host : the host associated with a Note, not required if 'address' or 'addr' is specified.
         - ua_string : the value of the User-Agent header
         """
-        if not any([ i in kwargs for i in ('host', 'ua_string')]):
+        if not any([i in kwargs for i in ('host', 'ua_string')]):
             raise TypeError('Expected host or ua_string.')
         return self.dbreport('client', kwargs)
 
@@ -1090,7 +1091,7 @@ class DbManager(MsfManager):
         - database : the database name (default: 'msf')
         - port : the port that the server is running on (default: 5432)
         """
-        runopts = { 'username': username, 'database' : database }
+        runopts = {'username': username, 'database': database}
         runopts.update(kwargs)
         return self.rpc.call(MsfRpcMethod.DbConnect, runopts)['result'] == 'success'
 
@@ -1103,7 +1104,7 @@ class DbManager(MsfManager):
 
     @driver.setter
     def driver(self, d):
-        self.rpc.call(MsfRpcMethod.DbDriver, {'driver' : d})
+        self.rpc.call(MsfRpcMethod.DbDriver, {'driver': d})
 
     @property
     def status(self):
@@ -1882,12 +1883,12 @@ class SessionManager(MsfManager):
                 if s[k]['uuid'] == id:
                     if s[id]['type'] == 'meterpreter':
                         return MeterpreterSession(id, self.rpc, s)
-                    elif s[id]['type']  == 'shell':
+                    elif s[id]['type'] == 'shell':
                         return ShellSession(id, self.rpc, s)
             raise KeyError('Session ID (%s) does not exist' % id)
         if s[id]['type'] == 'meterpreter':
             return MeterpreterSession(id, self.rpc, s)
-        elif s[id]['type']  == 'shell':
+        elif s[id]['type'] == 'shell':
             return ShellSession(id, self.rpc, s)
         raise NotImplementedError('Could not determine session type: %s' % s[id]['type'])
 
