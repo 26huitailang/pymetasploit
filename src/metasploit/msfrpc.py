@@ -1481,7 +1481,7 @@ class MsfModule(object):
                             'Invalid payload (%s) for given target (%d).' % (payload.modulename, self.target)
                         )
                     runopts['PAYLOAD'] = payload.modulename
-                    for k, v in payload.runoptions.iteritems():
+                    for k, v in payload.runoptions.items():
                         if v is None or (isinstance(v, str) and not v):
                             continue
                         if k not in runopts or runopts[k] is None or \
